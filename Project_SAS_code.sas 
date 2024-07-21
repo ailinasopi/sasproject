@@ -1,0 +1,864 @@
+
+/*Question 1.a*/
+
+data saspf.basket_clean;
+set saspf.basket;
+array myvars[*] _all_;
+do i = 1 to dim(myvars);
+    if missing(myvars[i]) then do;
+        delete;
+        leave;
+    end;
+end;
+run;
+
+
+
+proc sort data=saspf.products out=saspf.products_sorted;
+ by Product_ID;
+run;
+
+proc sort data=saspf.basket_clean out=saspf.basket_clean_sorted;
+ by invoice_ID;
+run;
+
+proc sort data=saspf.invoice out=saspf.invoice_sorted;
+ by invoice_ID;
+run;
+
+data saspf.basket_invoice_table;
+    merge saspf.basket_clean_sorted (in=a) saspf.invoice_sorted (in=b);
+    by invoice_ID;
+	if a=1 and b=1;
+run;
+
+proc sort data=saspf.basket_invoice_table out=saspf.basket_invoice_table_sorted;
+	by product_id;
+run;
+
+
+
+data saspf.basket_invoice_products_table;
+	merge saspf.basket_invoice_table_sorted (in=a) saspf.products_sorted (in=b);
+	by product_id;
+	if a=1 and b=1;
+run;
+
+proc sql;
+	create table saspf.final_question1 as
+	select invoiceNo,
+	count (SKU) as Invoice_total_Items
+	from saspf.basket_invoice_products_table
+	group by invoice_id , InvoiceNo
+	order by invoice_id;
+quit;
+
+proc print data=saspf.final_question1(obs=10); 
+run;
+
+
+
+
+/* Question 1.b*/
+
+proc sort data=saspf.products out=saspf.products_sorted;
+ by Product_ID;
+run;
+
+proc sort data=saspf.basket_clean out=saspf.basket_clean_sorted;
+ by Product_ID;
+run;
+
+/*merge basket and products table by product_id*/
+
+data saspf.basket_products;
+   merge saspf.products_sorted (in=a) saspf.basket_clean_sorted (in=b);
+   by product_id;
+   if a;
+run;
+
+/*sort promotions table*/
+/*then merge table basket_products with table promotions*/
+
+proc sort data=saspf.promotions out=saspf.promotions_sorted;
+ by Promotion_ID;
+run;
+
+proc sort data=saspf.basket_products out=saspf.basket_products_sorted;
+ by Promotion_ID;
+run;
+
+data saspf.basket_products_promotions;
+   merge saspf.basket_products_sorted (in=a) saspf.promotions_sorted (in=b);
+   by Promotion_ID;
+   if a;
+run;
+
+proc print data=saspf.basket_products_promotions(obs=10); 
+run;
+
+
+proc sort data=saspf.basket_products_promotions out=saspf.basket_products_promotions_s;
+ by Invoice_ID;
+run;
+/* Calculate the total value of each SKU-Product, taking into account any promotions */
+data saspf.invoice_totals;
+set saspf.basket_products_promotions_s;
+Invoice_Total_Value = (1 - Promotion) * Quantity * Product_Price;
+by Invoice_ID;
+/* Output the total value of each invoice */
+run;
+
+proc means data=saspf.invoice_totals sum;
+var Invoice_Total_Value;
+class Invoice_ID;
+output out=saspf.invoice_totals_sum sum=Invoice_Total_Value;
+run;
+
+
+
+
+
+data saspf.invoice_totals;
+set saspf.basket_products_promotions_s;
+Products_total_value=product_price*(1-promotion)*quantity;
+run;
+
+/* Output the results to a new SAS data set */
+proc means data=saspf.invoice_totals sum;
+var Products_total_value;
+class Invoice_ID;
+output out=saspf.invoice_totals_sum sum=Products_total_value;
+run;
+
+
+proc print data=saspf.invoice_totals_sum(obs=10); 
+run;
+
+proc print data=saspf.invoice_totals(obs=10); 
+run;
+
+/* Question 1.c*/
+
+To divide the observations of the Invoice table into two new tables, one for sales transactions and one for returns transactions,
+ based on the Operation variable, we can use a data step 
+with if-then statements. The following SAS code can be used to achieve 
+this:
+
+The above code creates two new tables named Sales and Returns, and copies 
+the observations from 
+the original Invoice table that correspond to sales and returns 
+transactions, respectively. 
+
+Observations where Operation is 'Sale' are copied to the Sales table,
+ while observations where 
+Operation is 'Return' are copied to the Returns table.
+
+proc print data=saspf.invoice(obs=10); 
+run;
+
+/* Create a new table for sales transactions */
+
+/*need to make changes as it is the first trial*/
+data saspf.Sales;
+   set saspf.invoice;
+   if Operation = 'Sale';
+run;
+
+/* Create a new table for returns transactions */
+data saspf.Returns;
+   set saspf.invoice;
+   if Operation = 'Return';
+run;
+
+
+proc print data=saspf.Sales(obs=10); 
+run;
+
+proc print data=saspf.Returns(obs=10); 
+run;
+
+/* Question 1.d*/
+/* Make a print before creating the new variable in order to understand the variables that i will use */
+proc print data=saspf.Customers(obs=10); 
+run;
+
+/* Create a new variable 'Age' based on the customer's birth year */
+data saspf.Customers;
+   set saspf.Customers;
+   if Year_Of_Birth < 1910 and Year_Of_Birth > 2001 then
+      Age = int((mdy(1, 1, 2019) - mdy(Month_Of_Birth, Day_Of_Birth, Year_Of_Birth)) / 365.25);
+   IF age ="." then DELETE;
+run;
+
+/* print after the addition of the new variable*/
+proc print data=saspf.Customers(obs=100); 
+run;
+
+/*Question 2.a*/
+
+The visualisations for this question are located at the explore and visualise (SAS Project all answers).
+
+/*Question 2.b*/
+
+data saspf.Customers;
+  set saspf.Customers;
+  if Age < 18 then Age_Range = "Under 18";
+  else if Age >= 18 and Age <= 25 then Age_Range = "Very Young";
+  else if Age >= 26 and Age <= 35 then Age_Range = "Young";
+  else if Age >= 36 and Age <= 50 then Age_Range = "Middle Age";
+  else if Age >= 51 and Age <= 65 then Age_Range = "Mature";
+  else if Age >= 66 and Age <= 75 then Age_Range = "Old";
+  else if Age >= 76 then Age_Range = "Very Old";
+run;
+
+
+/*Question 2.c*/
+
+/*firstly we print the datasets in order to understand what is their content*/
+ 
+proc print data=saspf.Customers(obs=10); 
+run;
+
+proc print data=saspf.invoice_sorted(obs=10); 
+run;
+
+proc print data=saspf.basket_products_promotions_s(obs=10); 
+run;
+we will keep it as a solution to 2.c 
+
+proc print data=saspf.basket_products_promotions_s(obs=10); 
+run;
+
+
+/* Step 1: Merge customer and invoice tables */
+data saspf.cust_invoice;
+  merge saspf.customers   
+	saspf.invoice ;
+  by Customer_ID;
+run;
+
+proc print data=saspf.cust_invoice(obs=10); 
+run;
+
+proc sort data=saspf.cust_invoice out=saspf.cust_invoice_sorted;
+ by invoice_ID;
+run;
+
+
+
+
+/* Step 2: Merge cust_inv and basket , product & promotion tables */
+data saspf.cust_inv_basket_promot_prod;
+  merge saspf.cust_invoice_sorted
+        saspf.basket_products_promotions_s ;
+  by Invoice_ID;
+run;
+
+proc print data=saspf.cust_inv_basket_promot_prod(obs=10); 
+run;
+
+data saspf.all_cleaned;
+  set saspf.cust_inv_basket_promot_prod;
+  if not missing(Age) and not missing(Invoice_ID) and not missing(InvoiceDate) and not missing(Payment_Method) and not missing(Product_ID) and not missing(Product_Origin) and not missing(SKU) and not missing(Product_Price) and not missing(Promotion_ID) and not missing(Quantity) and not missing(i) and not missing(Promotion);
+run;
+
+
+
+
+proc sql;
+   create table saspf.Age_Group_Stats as
+   select Age_Range,Operation,
+          count(distinct Invoice_ID) as Visits,
+          count(distinct Product_id) as Distinct_SKUs,
+          sum(Quantity*Product_Price*(1-Promotion)) as Total_Cost,
+		  count(distinct Customer_ID) as Count,
+		  sum(Quantity) as Total_Quantity
+   from saspf.all_cleaned
+   group by Age_Range ;
+quit;
+
+
+
+proc print data=saspf.Age_Group_Stats(obs=10); 
+run;
+
+
+
+The visualisations has been created/ located at the explore and visualise (SAS Project all answers).
+
+--------
+
+
+/*Question 3*/
+
+
+ ----use for 3.a----
+
+/* Calculate the total value of each SKU, taking into account any promotions */
+data saspf.question3;
+set saspf.all_cleaned;
+/*format Product_total dollar12.2;*/
+if Promotion > 0 then /* apply promotion discount */
+    Product_total = (1 - Promotion) * Quantity * Product_Price;
+else /* no promotion discount */
+    Product_total = Quantity * Product_Price;
+by Invoice_ID;
+/* Output the total value of each invoice */
+if last.Invoice_ID then output;
+run;
+
+
+---final answer -- visualization at sas studio---
+
+PROC MEANS DATA=saspf.all_cleaned NMISS;
+RUN;
+
+
+
+PROC MEANS DATA=saspf.question3 NMISS;
+RUN;
+
+proc sql;
+    create table saspf.question3a_f as
+    select Operation,Product_Total, sum(Product_Price*Quantity*(1-Promotion)) as Total_Monetary_Value
+    from saspf.question3
+    group by Operation;
+quit;
+
+
+proc sgplot data=saspf.question3;
+  vbar Operation / response=Product_total stat=sum datalabel;
+  xaxis label="Operation";
+  yaxis label="Product total";
+run;
+
+
+
+
+
+-----------
+
+
+
+/*question 3.b*/
+
+To create graphs for the average basket size, 
+we need to calculate the average number of SKUs and total monetary value
+ per invoice. 
+
+
+
+----final answer---
+
+
+/* Calculate average number of SKUs and total monetary value per invoice */
+proc sql;
+  create table saspf.question3b_f_03_04 as
+  select Invoice_ID,Operation, count(distinct SKU) as Num_SKUs, sum(Quantity * Product_Price*(1-Promotion)) as Invoice_Total_Value
+  from saspf.all_cleaned
+  where operation='Sale'
+  group by Invoice_ID;
+quit;
+
+PROC MEANS DATA=saspf.question3b_f_03_04 NMISS;
+RUN;
+
+/* Calculate average basket size per invoice */
+proc sql;
+  select mean(Num_SKUs) as Avg_Num_SKUs, mean(Invoice_Total_Value) as Avg_Total_Value
+  from saspf.question3b_f_03_04;
+quit;
+
+--------
+/*alternative with data step*/
+data saspf.question3b_f_03_04;
+  set saspf.all_cleaned;
+  where operation='Sale';
+  Invoice_Total_Value = Quantity * Product_Price * (1 - Promotion);
+  keep Invoice_ID Operation SKU Quantity Product_Price Promotion Invoice_Total_Value;
+run;
+
+proc sql;
+  select Invoice_ID, Operation, count(distinct SKU) as Num_SKUs, sum(Invoice_Total_Value) as Invoice_Total_Value
+  from saspf.question3b_f_03_04
+  group by Invoice_ID;
+quit;
+
+PROC MEANS DATA=saspf.question3b_f_03_04 NMISS;
+RUN;
+
+/* Calculate average basket size per invoice */
+data saspf.question3b_f_03_04_summary;
+  set saspf.question3b_f_03_04;
+  by Invoice_ID;
+  if first.Invoice_ID;
+  Avg_Num_SKUs = Num_SKUs;
+  Avg_Total_Value = Invoice_Total_Value;
+  keep Invoice_ID Avg_Num_SKUs Avg_Total_Value;
+run;
+
+In this code, I added a data step to create a new dataset (saspf.question3b_f_03_04) that only includes sales
+ (operation='Sale') and calculates Invoice_Total_Value based on Quantity, Product_Price, and Promotion. Then, 
+I modified the SQL code to use this new dataset and grouped by Invoice_ID. I also added a data step to calculate
+ the average number of SKUs and average total value per invoice, using the MEANS procedure to calculate the number
+ of missing values. Finally, I created a new dataset (saspf.question3b_f_03_04_summary) to store the summary
+ statistics, which includes Invoice_ID, Avg_Num_SKUs, and Avg_Total_Value.
+
+--------
+
+/*Question 3.c */
+
+-----final answer start-----
+
+data saspf.basket_products_promotions_s;
+  set saspf.basket_products_promotions_s(rename=('Product line'n=Product_Line));
+run;
+
+data saspf.basket_products_promotions_s;
+  set saspf.basket_products_promotions_s(rename=('Product type'n=Product_Type));
+run;
+
+PROC MEANS DATA=saspf.que3c NMISS;
+RUN;
+data saspf.Question3d;
+  merge saspf.cust_invoice_sorted_cleaned
+        saspf.basket_products_promotions_s ;
+  by Invoice_ID;
+run;
+data saspf.Question3d_cleaned;
+  set saspf.Question3d;
+  if not missing(Customer_id) and not missing(Invoice_ID) and not missing(InvoiceDate) and not missing(Payment_Method) and not missing(Postal_code) and not missing(Day_of_Birth) and not missing(Month_of_Birth) and not missing(Year_of_Birth) and not missing(Age)and not missing(Product_ID) and not missing(SKU) and not missing(Product_Origin) and not missing(Product_Price) and not missing(Promotion_ID) and not missing(Quantity) and not missing(Promotion);
+run;
+
+proc sql;
+   create table saspf.que3c_fa_03_04 as
+   select Invoice_ID, Product_ID, Quantity, Promotion_ID, 
+          Product,Product_Line,Product_Type,
+          sum(Product_Price * Quantity * (1 - Promotion)) as Products_Sales_Total_Value
+   from saspf.Question3d_cleaned
+   where Operation ='Sale'
+   group by Product_Line,Product_Type, Product
+   order by  Products_Sales_Total_Value desc;
+quit;
+
+----
+/*alternative with data step*/
+
+data saspf.que3c_fa_03_04;
+  set saspf.Question3d_cleaned;
+  where Operation = 'Sale';
+  Products_Sales_Total_Value = Product_Price * Quantity * (1 - Promotion);
+  keep Invoice_ID Product_ID Quantity Promotion_ID Product Product_Line Product_Type Products_Sales_Total_Value;
+run;
+
+proc sort data=saspf.que3c_fa_03_04;
+  by descending Products_Sales_Total_Value;
+run;
+
+
+
+In this code, I added a data step to create a new dataset (saspf.que3c_fa_03_04) that only includes sales
+ (Operation='Sale') and calculates Products_Sales_Total_Value based on Product_Price, Quantity, and Promotion.
+ Then, I sorted the dataset in descending order by Products_Sales_Total_Value using the SORT procedure.
+
+
+
+
+
+---final anwer end---
+
+/*Question 3.d*/
+
+
+----answer start ----
+data saspf.cust_invoice_sorted_cleaned;
+  set saspf.cust_invoice_sorted;
+  if not missing(Customer_id) and not missing(Invoice_ID) and not missing(InvoiceDate) and not missing(Payment_Method) and not missing(Postal_code) and not missing(Day_of_Birth) and not missing(Month_of_Birth) and not missing(Year_of_Birth) and not missing(Age);
+run;
+PROC MEANS DATA=saspf.basket_products_promotions_s NMISS;
+RUN;
+
+PROC MEANS DATA=saspf.cust_invoice_sorted NMISS;
+RUN;
+PROC MEANS DATA=saspf.Question3d NMISS;
+RUN;
+
+PROC MEANS DATA=saspf.Question3d_cleaned NMISS;
+RUN;
+
+PROC MEANS DATA=saspf.cust_invoice_sorted_cleaned NMISS;
+RUN;
+
+
+proc sql;
+	create table saspf.Q3d_cleaned_F_03_04 as
+    select Region,Gender ,sum(Quantity * Product_Price * (1 - Promotion)) as Revenue
+    from saspf.Question3d_cleaned
+	where Operation ='Sale'
+    group by Region
+    order by Revenue desc;
+quit;
+
+
+----answer end----
+see the graph at the visual report 
+
+
+----
+
+/*Question 3.e*/
+
+proc sql;
+  create table saspf.Q3e_03_04 as
+  select Region,Customer_id, Gender ,sum(Quantity * Product_Price * (1 - Promotion)) as Total_Revenue
+  from saspf.Question3d_cleaned
+  where Region = 'SP' and Operation ='Sale'
+  group by Gender;	
+quit;
+
+
+-----
+/*Question 4.a*/
+---asnwer start--
+proc sql;
+ create table saspf.Q4a_03_04 as
+  select Promotion,Quantity,Invoice_ID, Product_ID, sum(Quantity) as TotalQuantity,
+         sum(Quantity* (1 - Promotion)) as NoPromotedQuantity,
+         sum(Quantity * Promotion) as PromotedQuantity,
+         sum(Quantity * Promotion) / sum(Quantity) as PercentPromotion
+  from saspf.Question3d_cleaned
+	where Operation ='Sale'
+  group by Promotion;
+quit;
+
+---answer end---
+
+
+/*Question 4.b*/
+
+the answer is at the visual (SAS Project all answers).
+
+
+/*Question 4.c*/
+
+In the first step, we join the Invoice, Basket, and Products tables to get
+ information about the products sold on each invoice. In the second step,
+ we aggregate the data by the day of the week using the weekday() 
+function and calculate the total sales and number of distinct SKUs per invoice. 
+The case statement inside the sum function is used to separate sales and returns.
+
+After running this code, you can use a proc gchart or proc sgplot to visualize the 
+distribution of sales per day of the week, and see if there is any difference among 
+the various days with respect to the number of distinct SKUs per invoice.
+
+
+
+PROC MEANS DATA=saspf.Question3d NMISS;
+RUN;
+----try at 4/4/2023----
+
+/* Create a view that joins the Invoice, Basket, and Products tables */
+/* and extracts the day of the week from the InvoiceDate column */
+
+proc sql;
+create table saspf.sales_data_4c_a as
+select   Product_Line,Product_Type,SKU,Product,Invoice_ID,InvoiceDate,Product_ID,
+		Quantity,Product_Price,Promotion,Operation,
+       weekday(InvoiceDate) as Weekday		
+from saspf.Question3d_cleaned;
+quit;
+
+/* Calculate the total sales per day of the week */
+
+proc sql;
+create table saspf.sales_data_4c_b as
+select Weekday,Product_Line,Product_Type,SKU,Product,Invoice_ID,InvoiceDate,Product_ID,
+		Quantity,Product_Price,Promotion,Operation, sum(Quantity * Product_Price * (1 - Promotion)) as TotalSales ,count(distinct SKU) as DistinctSKUs,
+		count(distinct Product_ID) / count(distinct Invoice_ID) as avg_skus_per_invoice
+from saspf.sales_data_4c_a
+group by Weekday and Operation ='Sale';
+quit;
+
+/* Calculate the number of distinct SKUs per invoice per day of the week */
+/* Calculate the average number of distinct SKUs per invoice per day of the week */
+
+proc sql;
+create table saspf.sales_data_4c_c as
+select Weekday,SKU,Product,Invoice_ID,InvoiceDate,Product_ID,
+		Quantity,Product_Price,Promotion,TotalSales,Operation,mean(DistinctSKUs) as AvgDistinctSKUs ,avg_skus_per_invoice
+from saspf.sales_data_4c_b
+group by Weekday and Operation ='Sale';
+quit;
+
+
+----- 
+
+
+/*Question 5.a*/
+
+
+PROC MEANS DATA=saspf.products_sorted NMISS;
+RUN;
+
+proc contents data=saspf.Question3d_cleaned;
+run;
+
+proc contents data=saspf.products;
+run;
+
+
+---keep code
+data saspf.Question5a_char;
+  set saspf.Question3d_cleaned;
+  /* create a new string variable and assign the formatted value of the numeric variable to it */
+  SKU_string = put(SKU, 19.);
+  /* 8. is an example format for numeric variables, adjust as needed for your data */
+  /*drop mynumericvar; /* drop the original numeric variable */
+run;
+
+data saspf.Question5a_f_a;
+    set saspf.Question5a_char;
+    /* Create a new variable to store the 9th digit of each barcode as a character;*/
+    Supplier_ID_char = substr(SKU_string, 9, 1);
+    /* Convert the character variable to numeric */
+    Supplier_ID = input(Supplier_ID_char, 1.);
+run;
+
+PROC MEANS DATA=saspf.suppliers NMISS;
+RUN;
+
+proc sort data=saspf.Question5a_f_a out=saspf.Question5a_f_a_sorted;
+	by Supplier_ID;
+run;
+
+data saspf.Question5a_f_b;
+	merge saspf.Question5a_f_a_sorted (in=a) saspf.suppliers (in=b);
+	by Supplier_ID;
+	if a=1 and b=1;
+run;
+PROC MEANS DATA=saspf.Question5a_f_b NMISS;
+RUN;
+
+proc means data = saspf.Question5a_f_b sum nway;
+	class Supplier_Name;
+	var Quantity;
+	where operation ='Sale';
+	output out=saspf.Q5a_f (drop=TYPE_FREQ_) sum =total_quantity_sold;
+run;
+
+
+proc freq data = saspf.Q5a_f noprint;
+	tables supplier_name / out= saspf.Question5a;
+	weight total_quantity_sold;
+run;
+
+
+-----
+
+/*Question 5b*/
+
+
+proc sql;
+  create table saspf.Question5a_f_b_part1 as
+  select Region,Customer_id, Gender ,Product_Origin,Operation,Supplier_Name ,sum(Quantity * Product_Price * (1 - Promotion)) as Total_Revenue
+  from saspf.Question5a_f_b
+  where Operation ='Sale'
+  group by Supplier_Name;	
+quit;
+
+
+
+
+
+proc means data= saspf.Question5a_f_b_part1 sum nway;
+	class supplier_name;
+	var Total_Revenue;
+	where operation = 'Sale';
+	output out=saspf.Q5b_f sum=total_sales_revenue;
+run;
+
+
+
+/*Question 5c*/
+
+proc sort data=saspf.Question5a_f_b_part1 out=saspf.Question5a_f_b_part1_s;
+	by Product_Origin;
+run;
+
+data saspf.p_origin_renamed;
+	set saspf.p_origin;
+	rename code = Product_Origin country=Country_origin;
+run;
+
+data saspf.question5c;
+	merge saspf.p_origin_renamed(in=a) saspf.Question5a_f_b_part1_s(in=b);
+	by product_origin;
+	if a=1 and b=1;
+run;
+
+
+proc tabulate data=saspf.question5c;
+	class country_origin supplier_name;
+	var Total_Revenue;
+	table Country_origin='Country  Origin',supplier_name='Supplier',
+	Total_Revenue='Total Revenue';
+run;
+	
+
+
+/*Question 6*/
+
+
+----as final asnwer----
+proc sql;
+    create table saspf.RFM_z2 as
+    select 
+		Customer_ID,
+		intck('week',max(InvoiceDate),'16DEC2011'd) as R,
+        count(distinct InvoiceNo) as F,
+        sum(distinct Quantity * Product_Price * (1 - Promotion)) as M,
+		1 as T
+    from 
+        saspf.Question3d_cleaned 
+	where 
+		operation='Sale'     
+    group by 
+        Customer_ID;
+quit;
+
+
+
+---
+Explanation:
+
+In this version of the code, the input() function is used to convert the 
+date literal '16Dec2011' into a SAS date value using the date9. format, 
+which represents dates in the format DDMMMYYYY. The resulting date value
+ is then passed as the third argument to the intck() function.
+The count function is used to calculate Frequency by counting the distinct number of InvoiceNos 
+for each customer.
+Monetary is calculated by multiplying Quantity, ProductPrice and (1 - Promotion) for each product
+ sold and then summing the total for each customer.
+The group by statement is used to group the data by CustomerID so that the aggregation functions 
+can be applied correctly.
+
+
+proc contents data=saspf._all_ nodetails;
+run;
+
+
+/*Question 7 */
+
+
+answer at the build models 
+
+
+/*Question 8 */
+libname saspf '/shared/home/mpked21051@webmail.unipi.gr/casuser/SAS Final Project';
+
+--- what i will use ---
+/*has info for all the clusters*/
+
+data saspf.cluster_data_transformed;
+	set casuser.clusz2q8;
+run;
+
+proc sort data = saspf.question3d_cleaned;
+	by customer_id;
+run;
+
+proc sort data= saspf.cluster_data_transformed;
+	by customer_id;
+run;
+
+data saspf.q7_all_clusters;
+	merge saspf.cluster_data_transformed saspf.question3d_cleaned;
+	by customer_id;
+run;
+
+
+proc means data = saspf.q7_all_clusters NMISS;
+run;
+
+Data saspf.q7_all_clusters_cleaned;
+	set saspf.q7_all_clusters;
+	if not missing(Customer_id) and not missing(T) and not missing(F) and not missing(M) and not missing(R) and not missing(_CLUSTER_ID_) and not missing(Age) and not missing(Gender) and not missing(Region)and not missing(Product) ;
+run;
+
+proc means data = saspf.q7_all_clusters_cleaned NMISS;
+run;
+
+
+/*has info only for cluster 1 & 5*/
+data saspf.question7_part2;
+	set saspf.cluster_data_transformed;
+	where _CLUSTER_ID_ = 1 or _CLUSTER_ID_ = 5;
+run;
+
+proc sort data = saspf.question3d_cleaned;
+	by customer_id;
+run;
+
+proc sort data= saspf.question7_part2;
+	by customer_id;
+run;
+
+
+data saspf.q7_f;
+	merge saspf.question7_part2 saspf.question3d_cleaned;
+	by customer_id;
+run;
+
+
+proc means data = saspf.q7_f NMISS;
+run;
+
+Data saspf.q7_f_cleaned;
+	set saspf.q7_f;
+	if not missing(Customer_id) and not missing(T) and not missing(F) and not missing(M) and not missing(R) and not missing(_CLUSTER_ID_) and not missing(Age) and not missing(Gender) and not missing(Region)and not missing(Product) ;
+run;
+
+proc means data = saspf.q7_f_cleaned NMISS;
+run;
+
+
+
+
+/*Question 8*/
+
+/* Dataset for cluster_id=1 */
+data saspf.q7_f_cluster1;
+   set saspf.q7_f_cleaned;
+   where _CLUSTER_ID_ = 1;
+run;
+
+/* Dataset for cluster_id=5 */
+data saspf.q7_f_cluster5;
+   set saspf.q7_f_cleaned;
+   where _CLUSTER_ID_ = 5;
+run;
+
+proc means data = saspf.q7_f_cluster1 NMISS;
+run;
+
+proc means data = saspf.q7_f_cluster5 NMISS;
+run;
+
+
+/*Question 9*/
+/*drop missing values at the dataset about the customers class 97  */
+
+proc means data = saspf.customers97 NMISS;
+run;
+
+/*there is a missing value at customer_code */
+
+Data saspf.customers97_cleaned;
+	set saspf.customers97;
+	if not missing(Customer_code) and not missing(Class97) and not missing(boughtClasses) and not missing(frequency) and not missing(recency) and not missing(monetary) and not missing(age);
+run;
+
+
+proc means data = saspf.customers97_cleaned NMISS;
+run;
